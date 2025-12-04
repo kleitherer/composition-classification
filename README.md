@@ -1,56 +1,103 @@
-# composition-classification
+# CS109 Final Project — Composition Attribution via Probabilistic Modeling
 
-This is my CS109 Final Project. My goal is to use probability to determine when a musical score is stylistically inconsistent with its attributed composer. Based on quantifiable features in the score, like pitch intervals, pitch range, tempo, chromaticity, etc, we can model the likelilhood that this piece actually was written by a specific composer. This has huge implications in identifying misattributed composers from history, especially for classical compositions when many women's works were attributed to their husbands. 
+This project uses probability, bootstrapping, and symbolic music analysis to determine whether a musical composition is stylistically consistent with its attributed composer.
+The motivation comes from a real historical puzzle: Was the famous harp “Sonata in C Minor” actually written by Jan Ladislav Dussek — or by his wife, Sophia Corri Dussek, an accomplished harpist whose authorship was often erased?
 
-Here is our high level process:
-
-First, the success in our attempt to uncover hidden histories rests on the assumption that the features we use for training really can be used to capture a composer's identity. So, to validate this assumption, we employed clustering methodst to ensure 
-
-we trained a simple classifier that outputs the posterior distribution given an observation of features. I.E. given that we see this range of pitches, this key, this number of accidentals, what is the probability that the composer is ___? 
+Traditional musicology argues this piece “feels” idiomatic for harp writing.
+This project asks: Can we quantify that?
 
 
-Second, since we're able to group 
+## Motivation
+
+Many female composers in the 18th–19th centuries published under their husbands’ names, or were denied authorship entirely. Because of this, modern datasets overrepresent already-famous male composers, while marginalized voices leave very small statistical footprints.
+
+This project explores whether statistical evidence extracted from sheet music itself can shed light on misattributions — with the Dussek harp sonata as a case study.
 
 
-This has been done before 
+## Project Overview
 
-# Feature Extraction, using kNN classification and correlation matrix
+Step 1 — Extract symbolic musical features with music21
 
-We cannot use sklearn's built in features and that's where the novelty of this project comes in. We'll be using symbolic data to characterize our pieces, and then we'll use kNN classifcation to validate the features we've extracted.
-If neighbors make sense (Beethoven near Beethoven, harpists near harpists), you extracted meaningful features.
+Instead of using audio, we analyze symbolic scores (MIDI / MusicXML), extracting ~20 quantitative features:
+	•	Pitch features: mean pitch, range, variance
+	•	Rhythmic features: duration statistics, IOI (inter-onset interval)
+	•	Chromaticity: accidental ratio, out-of-key ratio, accidental-change rate
+	•	Harmonic texture: chord ratio, harp-unfriendly chord ratio, span sizes
+	•	Melodic interval statistics: mean interval, step ratio, leap ratio
+	•	Entropy: interval entropy measuring predictability of melodic motion
 
-You can show plots:
+These are the same kinds of features used in computational musicology, but implemented manually using music21 rather than sklearn.
 
-“These five closest pieces to Piece X are all harpist works → strong harp idiom signal.”
+⸻
 
-This is intuitive to non-technical readers.
+Step 2 — Validate that features actually encode composer style
 
+Before using the features on Dussek, we confirm they meaningfully separate known composers.
 
-YES, you should include a correlation matrix — and YES, in this context each feature is treated as a random variable.
-A correlation matrix is exactly the right tool to understand your feature space, diagnose redundancy, and justify modeling decisions.
+We processed 179 pieces across Bach, Mozart, Beethoven, Chopin, and Debussy, then:
+- computed per-feature distributions
+- discretized features into bins
+- measured symmetric KL divergence between composer pairs
 
-This is exactly the setup where:
-	•	Each column = a random variable
-	•	Each row = a sample drawn from a distribution over feature-vectors
+Example finding (interval entropy):
+- Low KL (similar): Mozart ↔ Beethoven (~1.7)
+- High KL (different): Bach ↔ Chopin (~3.9), Bach ↔ Debussy (~3.4)
 
+This matches real music history: Classical composers cluster together; Romantic/Impressionist composers diverge. The extracted features genuinely encode composer identity → they’re valid for evaluating Dussek.
 
-D. Helps you choose between global vs. local features
+## Building a Composer Model for Dussek
 
-You can visually show:
-	•	global features cluster / correlate together
-	•	local features (interval distributions) behave differently
+Dussek has only 11 authenticated pieces, so we cannot assume Gaussianity or large-sample asymptotics.
 
-This supports your narrative that local features carry more stylistic identity.
+Instead, we use a nonparametric approach:
+- Naive Bayesian likelihood model across features
 
+We fit a univariate distribution per feature using empirical binning.
+- Bootstrapping for statistical significance
 
+Using CS109’s bootstrap procedure, we estimate the probability that each feature value in the disputed sonata could have come from Dussek’s distribution.
 
+This gives a per-feature p-value.
 
-# Experiments:
+## Testing the Disputed Harp Sonata
 
-models to test from sklearn:
+We extract features from:
+```
+/data/instruments/harpists/dussek/sonata-en-do-menor-jan-ladislav-dussek.mid
+```
 
+High-evidence mismatches: wider range, larger leaps, more irregularity, and strongly harp-idiomatic chord shapes — all uncharacteristic of Dussek’s Classical keyboard writing.
 
-# Real world extension - solving the mystery of Dussek's Sonata in C Minor
+Medium evidence (0.02–0.05)
+- More chromatic movement
+- More modulation
 
-How? We'll be running a statistical test to see whether composer-style models trained mostly on men accidentally treat women’s compositions as stylistic OUTLIERS, or misclassify them more often than men’s.
+High p-values (≥ 0.20)
+- IOI variation, chord density, accidental ratio
+These features don’t carry stylistic weight → good sanity check.
 
+Final Statistical Conclusion
+- Posterior P(piece is by Dussek | features) ≈ 0
+- The disputed sonata is a strong outlier relative to Dussek’s style
+- The quantitative evidence supports the hypothesis that Sophia Corri Dussek may have been the true composer.
+
+```
+feature_extraction/          # music21 feature code
+data/composers/              # MIDI files for Bach, Mozart, Beethoven, Chopin, Debussy, Dussek
+data/instruments/            # Harp-specific datasets (incl. disputed sonata)
+notebooks/                   # Jupyter notebooks: KL tests, plots, composer validation
+models/                      # Likelihood model + bootstrap scripts
+figures/                     # Generated plots for the report
+README.md
+```
+
+## Running the Code
+Run composer validation (KL divergence + visualizations)
+```
+python analyze_composers.py
+```
+
+Run Dussek attribution test (bootstrap + likelihood)
+```
+python test_dussek_attribution.py
+```

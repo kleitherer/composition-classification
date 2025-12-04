@@ -197,7 +197,6 @@ def extract_features(filepath):
     step_ratio = np.mean([a <= 2 for a in abs_intervals]) if abs_intervals else 0
     leap_ratio = np.mean([a >= 5 for a in abs_intervals]) if abs_intervals else 0
 
-    # interval entropy (melodic unpredictability)
     if len(intervals) > 0:
         unique, counts = np.unique(intervals, return_counts=True)
         probs = counts / counts.sum()
